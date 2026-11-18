@@ -1,8 +1,8 @@
+
 using UnityEngine;
 
 public class Grappling : MonoBehaviour
 {
-    public Collider2D grapplePoint;
     public Transform rope;
 
     public float ropeWidth = 0.08f;
@@ -13,7 +13,10 @@ public class Grappling : MonoBehaviour
 
     private Rigidbody2D rb;
 
+    private Collider2D grapplePoint;
+
     private bool isGrappling = false;
+    public bool IsGrappling => isGrappling;
     private float currentGrappleSpeed = 0f;
 
     private Vector2 grappleDirection;
@@ -27,33 +30,43 @@ public class Grappling : MonoBehaviour
 
     void Update()
     {
-        // Start grappling when clicking the circle
+        // Start grappling when clicking a GrapplePoint
         if (Input.GetMouseButtonDown(0))
         {
             Vector2 mousePosition =
                 Camera.main.ScreenToWorldPoint(Input.mousePosition);
 
-            if (grapplePoint != null &&
-                grapplePoint.OverlapPoint(mousePosition))
+            // Find all colliders under the mouse
+            Collider2D[] hits = Physics2D.OverlapPointAll(mousePosition);
+
+            foreach (Collider2D hit in hits)
             {
-                grappleDirection =
-                    (Vector2)grapplePoint.transform.position
-                    - rb.position;
-
-                // Only grapple if we're not already at the point
-                if (grappleDirection.sqrMagnitude > 0.0001f)
+                // Only attach to objects tagged GrapplePoint
+                if (hit.CompareTag("GrapplePoint"))
                 {
-                    grappleDirection.Normalize();
+                    grapplePoint = hit;
 
-                    isGrappling = true;
-                    currentGrappleSpeed = 0f;
+                    grappleDirection =
+                        (Vector2)grapplePoint.transform.position
+                        - rb.position;
 
-                    rope.gameObject.SetActive(true);
+                    // Only grapple if not already at the point
+                    if (grappleDirection.sqrMagnitude > 0.0001f)
+                    {
+                        grappleDirection.Normalize();
+
+                        isGrappling = true;
+                        currentGrappleSpeed = 0f;
+
+                        rope.gameObject.SetActive(true);
+                    }
+
+                    break;
                 }
             }
         }
 
-        // Release the grapple
+        // Release grapple
         if (Input.GetMouseButtonUp(0))
         {
             StopGrapple();
@@ -70,6 +83,12 @@ public class Grappling : MonoBehaviour
 
     void PullPlayer()
     {
+        if (grapplePoint == null)
+        {
+            StopGrapple();
+            return;
+        }
+
         Vector2 direction =
             (Vector2)grapplePoint.transform.position - rb.position;
 
@@ -87,7 +106,7 @@ public class Grappling : MonoBehaviour
             grappleAcceleration * Time.fixedDeltaTime
         );
 
-        // Propel the player toward the point
+        // Propel player toward the point
         rb.linearVelocity =
             direction.normalized * currentGrappleSpeed;
     }
@@ -97,15 +116,17 @@ public class Grappling : MonoBehaviour
         isGrappling = false;
         currentGrappleSpeed = 0f;
 
-        // Hide the rope
+        // Hide rope
         rope.gameObject.SetActive(false);
+
+        grapplePoint = null;
 
         // Keep momentum after releasing
     }
 
     void LateUpdate()
     {
-        if (isGrappling)
+        if (isGrappling && grapplePoint != null)
         {
             DrawRope();
         }
